@@ -42,7 +42,7 @@ void html_tree_new_tag( struct html_tree* tree ) {
       tree->current = tree->current->next_sibling;
    }
 }
-            
+
 static void html_tree_new_attr( struct html_tree_tag* tag ) {
    struct html_tree_attr* attr_iter = NULL;
    struct html_tree_attr* new_attr = NULL;
@@ -70,11 +70,11 @@ static void html_tree_append_char( char c, struct html_tree* tree ) {
    struct html_tree_attr* attr_current = NULL;
 
    switch( tree->state ) {
-      case HTML_TREE_OPENING_TAG:
+      case HTML_TREE_IN_START_TAG:
          bconchar( tree->current->tag, c );
          break;
-   
-      case HTML_TREE_IN_DATA:         
+
+      case HTML_TREE_IN_DATA:
          bconchar( tree->current->data, c );
          break;
 
@@ -102,7 +102,7 @@ static void html_tree_parse_char( char c, struct html_tree* tree ) {
 
    switch( c ) {
       case '<':
-         if( 
+         if(
             HTML_TREE_OPENING_TAG == tree->state ||
             HTML_TREE_IN_START_TAG == tree->state ||
             HTML_TREE_IN_END_TAG == tree->state ||
@@ -112,8 +112,7 @@ static void html_tree_parse_char( char c, struct html_tree* tree ) {
          ) {
             /* TODO: Error: Double-open tag. */
          } else {
-            html_tree_new_tag( tree );
-            tree->state == HTML_TREE_IN_START_TAG;
+            tree->state = HTML_TREE_OPENING_TAG;
          }
          break;
 
@@ -121,9 +120,15 @@ static void html_tree_parse_char( char c, struct html_tree* tree ) {
          if( HTML_TREE_IN_START_TAG == tree->state ) {
             tree->state = HTML_TREE_IN_DATA;
          } else if( HTML_TREE_IN_END_TAG == tree->state ) {
+            if( 0 == blength( tree->current->tag ) ) {
+               tree->current = tree->current->parent;
+            }
             if( NULL != tree->current->parent ) {
                tree->current = tree->current->parent;
             }
+            tree->state = HTML_TREE_IN_DATA;
+         } else if( HTML_TREE_OPENING_TAG == tree->state ) {
+            /* Weird empty tag. */
             tree->state = HTML_TREE_IN_DATA;
          }
          break;
@@ -139,7 +144,7 @@ static void html_tree_parse_char( char c, struct html_tree* tree ) {
             tree->state = HTML_TREE_IN_START_TAG;
          }
          break;
-  
+
       case '=':
          /* Don't append the '=' to the attr label. */
          if( HTML_TREE_IN_ATTR_LABEL != tree->state ) {
@@ -150,17 +155,29 @@ static void html_tree_parse_char( char c, struct html_tree* tree ) {
       case '/':
          if( HTML_TREE_OPENING_TAG == tree->state ) {
             tree->state = HTML_TREE_IN_END_TAG;
-         }
-         break;
-
-      case ' ':
-         if( HTML_TREE_IN_START_TAG == tree->state ) {
-            html_tree_new_attr( tree->current );
-            tree->state = HTML_TREE_IN_ATTR_LABEL;
+         } else if( HTML_TREE_IN_START_TAG == tree->state ) {
+            tree->state = HTML_TREE_IN_END_TAG;
          }
          break;
 
       default:
+         if( HTML_TREE_OPENING_TAG == tree->state ) {
+            /* The character isn't '/' or '>', so we're in a tag! */
+            html_tree_new_tag( tree );
+            tree->state = HTML_TREE_IN_START_TAG;
+         } else if( 
+            ' ' == tree->last_char &&
+            HTML_TREE_IN_START_TAG == tree->state
+         ) {
+            html_tree_new_attr( tree->current );
+            tree->state = HTML_TREE_IN_ATTR_LABEL;
+         } else if(
+            HTML_TREE_IN_DATA == tree->state &&
+            /* TODO: Crash if text before <html>? */
+            0 < blength( tree->current->tag )
+         ) {
+            html_tree_new_tag( tree );
+         }
          html_tree_append_char( c, tree );
          break;
    }
@@ -178,9 +195,6 @@ int html_tree_parse_string( bstring html_string, struct html_tree* out ) {
    if( NULL != out->root ) {
       /* TODO: Error. */
    }
-
-   out->root = calloc( 1, sizeof( struct html_tree_tag ) );
-   out->current = out->root;
 
    for( i = 0 ; blength( html_string ) > i ; i++ ) {
       html_tree_parse_char( bchar( html_string, i ), out );
