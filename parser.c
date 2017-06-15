@@ -250,6 +250,12 @@ static void html_tree_parse_char( char c, struct html_tree* tree ) {
          ) {
             break;
          }
+
+         if( HTML_TREE_IN_START_TAG == tree->state ) {
+            /* Don't add spaces to tag tags. */
+            break;
+         }
+
          /* Fall through to default. */
 
       default:
@@ -292,5 +298,75 @@ int html_tree_parse_string( bstring html_string, struct html_tree* out ) {
       html_tree_parse_char( bchar( html_string, i ), out );
    }
 
+   html_tree_cleanup( out->root );
 }
 
+void html_tree_free_attr( struct html_tree_attr* attr ) {
+   bdestroy( attr->label );
+   bdestroy( attr->value );
+   free( attr );
+}
+
+void html_tree_free_tag( struct html_tree_tag* tag ) {
+   struct html_tree_attr* attr_iter = NULL;
+   struct html_tree_attr* attr_next = NULL;
+
+   attr_iter = tag->attrs;
+   while( NULL != attr_iter ) {
+      attr_next = attr_iter->next;
+      html_tree_free_attr( attr_iter );
+      attr_iter = attr_next;
+   }
+
+   bdestroy( tag->data );
+   bdestroy( tag->tag );
+
+   free( tag );
+}
+
+void html_tree_cleanup( struct html_tree_tag* tag ) {
+   struct html_tree_tag* tag_iter = NULL;
+   struct html_tree_attr* attr_iter = NULL;
+   struct html_tree_tag* tag_last = NULL;
+   struct html_tree_tag* tag_parent = NULL;
+   bstring str_test = NULL;
+   int attr_count;
+   int i;
+
+   tag_iter = tag;
+   while( NULL != tag_iter ) {
+      attr_iter = tag_iter->attrs;
+      attr_count = 0;
+      while( NULL != attr_iter ) {
+         attr_count++;
+         attr_iter = attr_iter->next;
+      }
+
+      if( NULL != tag_iter->first_child ) {
+         html_tree_cleanup( tag_iter->first_child );
+      } else {
+         /* This tag has no children. */
+         str_test = bstrcpy( tag_iter->data );
+         btrimws( str_test );
+         if( 0 == blength( str_test ) && 0 == blength( tag_iter->tag ) && 0 == attr_count ) {
+            /* This tag has no data or attrs. */
+            if( NULL != tag_last ) {
+               tag_last->next_sibling = tag_iter->next_sibling;
+               html_tree_free_tag( tag_iter );
+               tag_iter = tag_last->next_sibling;
+               continue;
+            } else if( NULL != tag_iter->parent ) {
+               /* No prior sibling. */
+               tag_parent = tag_iter->parent;
+               tag_parent->first_child = tag_iter->next_sibling;
+               html_tree_free_tag( tag_iter );
+               tag_iter = tag_parent->first_child;
+               continue;
+            }
+         }
+      }
+
+      tag_last = tag_iter;
+      tag_iter = tag_iter->next_sibling;
+   }
+}
