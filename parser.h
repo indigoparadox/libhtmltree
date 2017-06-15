@@ -10,7 +10,8 @@ enum html_tree_state {
    HTML_TREE_IN_START_TAG,
    HTML_TREE_IN_END_TAG,
    HTML_TREE_IN_ATTR_LABEL,
-   HTML_TREE_IN_ATTR_VALUE
+   HTML_TREE_IN_ATTR_VALUE,
+   HTML_TREE_IN_ENTITY
 };
 
 struct html_tree_attr {
@@ -30,6 +31,7 @@ struct html_tree_tag {
 
 struct html_tree {
    enum html_tree_state state;
+   enum html_tree_state last_state;
    char last_char;
    struct html_tree_tag* root;
    struct html_tree_tag* current;
