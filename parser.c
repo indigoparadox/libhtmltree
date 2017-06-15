@@ -4,6 +4,9 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+static struct tagbstring tag_br = bsStatic( "br" );
+static struct tagbstring tag_img = bsStatic( "img" );
+
 void html_tree_new_tag( struct html_tree* tree ) {
    struct html_tree_tag* new_tag = NULL;
 
@@ -112,20 +115,33 @@ static void html_tree_parse_char( char c, struct html_tree* tree ) {
          ) {
             /* TODO: Error: Double-open tag. */
          } else {
+            if(
+               HTML_TREE_IN_DATA == tree->state &&
+               NULL != tree->current &&
+               0 == blength( tree->current->tag )
+            ) {
+               tree->current = tree->current->parent;
+            }
+
             tree->state = HTML_TREE_OPENING_TAG;
          }
          break;
 
       case '>':
-         if( HTML_TREE_IN_START_TAG == tree->state ) {
-            tree->state = HTML_TREE_IN_DATA;
-         } else if( HTML_TREE_IN_END_TAG == tree->state ) {
+          if(
+            HTML_TREE_IN_END_TAG == tree->state ||
+            /* Exceptions: Tags that close immediately always. */
+            0 == bstricmp( tree->current->tag, &tag_br ) ||
+            0 == bstricmp( tree->current->tag, &tag_img )
+         ) {
             if( 0 == blength( tree->current->tag ) ) {
                tree->current = tree->current->parent;
             }
             if( NULL != tree->current->parent ) {
                tree->current = tree->current->parent;
             }
+            tree->state = HTML_TREE_IN_DATA;
+         } else if( HTML_TREE_IN_START_TAG == tree->state ) {
             tree->state = HTML_TREE_IN_DATA;
          } else if( HTML_TREE_OPENING_TAG == tree->state ) {
             /* Weird empty tag. */
@@ -160,12 +176,27 @@ static void html_tree_parse_char( char c, struct html_tree* tree ) {
          }
          break;
 
+      case '\t':
+      case '\n':
+      case '\r':
+      case ' ':
+         /* Limit spaces to one. */
+         if(
+            ' ' != tree->last_char ||
+            '\t' != tree->last_char ||
+            '\n' != tree->last_char ||
+            '\r' != tree->last_char
+         ) {
+            break;
+         }
+         /* Fall through to default. */
+
       default:
          if( HTML_TREE_OPENING_TAG == tree->state ) {
             /* The character isn't '/' or '>', so we're in a tag! */
             html_tree_new_tag( tree );
             tree->state = HTML_TREE_IN_START_TAG;
-         } else if( 
+         } else if(
             ' ' == tree->last_char &&
             HTML_TREE_IN_START_TAG == tree->state
          ) {
