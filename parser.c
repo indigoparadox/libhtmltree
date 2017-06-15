@@ -13,11 +13,42 @@ static struct tagbstring tag_br = bsStatic( "br" );
 static struct tagbstring tag_img = bsStatic( "img" );
 static struct tagbstring tag_name = bsStatic( "name" );
 
-#define HTML_TREE_ENTITY_COUNT 2
+#define HTML_TREE_SINGLETON_COUNT 16
+
+static struct tagbstring html_tree_singleton_tags[HTML_TREE_SINGLETON_COUNT] = {
+   bsStatic( "area" ),
+   bsStatic( "base" ),
+   bsStatic( "br" ),
+   bsStatic( "col" ),
+   bsStatic( "command" ),
+   bsStatic( "embed" ),
+   bsStatic( "hr" ),
+   bsStatic( "img" ),
+   bsStatic( "input" ),
+   bsStatic( "keygen" ),
+   bsStatic( "link" ),
+   bsStatic( "meta" ),
+   bsStatic( "param" ),
+   bsStatic( "source" ),
+   bsStatic( "track" ),
+   bsStatic( "wbr" )
+};
+
+#define HTML_TREE_ENTITY_COUNT 12
 
 static struct html_tree_entity_def entities[HTML_TREE_ENTITY_COUNT] = {
    { bsStatic( "dash" ), bsStatic( "-" ) },
    { bsStatic( "copy" ), bsStatic( "©" ) },
+   { bsStatic( "amp" ), bsStatic( "&" ) },
+   { bsStatic( "nbsp" ), bsStatic( " " ) },
+   { bsStatic( "lt" ), bsStatic( "<" ) },
+   { bsStatic( "gt" ), bsStatic( ">" ) },
+   { bsStatic( "quot" ), bsStatic( "\"" ) },
+   { bsStatic( "apos" ), bsStatic( "'" ) },
+   { bsStatic( "cent" ), bsStatic( "¢" ) },
+   { bsStatic( "pound" ), bsStatic( "£" ) },
+   { bsStatic( "yen" ), bsStatic( "¥" ) },
+   { bsStatic( "reg" ), bsStatic( "®" ) }
 };
 
 void html_tree_new_tag( struct html_tree* tree ) {
@@ -283,48 +314,7 @@ static void html_tree_parse_char( char c, struct html_tree* tree ) {
    tree->last_char = c;
 }
 
-int html_tree_parse_string( bstring html_string, struct html_tree* out ) {
-   int i;
-
-   if( NULL == out ) {
-      /* TODO: Error. */
-   }
-
-   if( NULL != out->root ) {
-      /* TODO: Error. */
-   }
-
-   for( i = 0 ; blength( html_string ) > i ; i++ ) {
-      html_tree_parse_char( bchar( html_string, i ), out );
-   }
-
-   html_tree_cleanup( out->root );
-}
-
-void html_tree_free_attr( struct html_tree_attr* attr ) {
-   bdestroy( attr->label );
-   bdestroy( attr->value );
-   free( attr );
-}
-
-void html_tree_free_tag( struct html_tree_tag* tag ) {
-   struct html_tree_attr* attr_iter = NULL;
-   struct html_tree_attr* attr_next = NULL;
-
-   attr_iter = tag->attrs;
-   while( NULL != attr_iter ) {
-      attr_next = attr_iter->next;
-      html_tree_free_attr( attr_iter );
-      attr_iter = attr_next;
-   }
-
-   bdestroy( tag->data );
-   bdestroy( tag->tag );
-
-   free( tag );
-}
-
-void html_tree_cleanup( struct html_tree_tag* tag ) {
+static void html_tree_cleanup( struct html_tree_tag* tag ) {
    struct html_tree_tag* tag_iter = NULL;
    struct html_tree_attr* attr_iter = NULL;
    struct html_tree_tag* tag_last = NULL;
@@ -370,3 +360,45 @@ void html_tree_cleanup( struct html_tree_tag* tag ) {
       tag_iter = tag_iter->next_sibling;
    }
 }
+
+int html_tree_parse_string( bstring html_string, struct html_tree* out ) {
+   int i;
+
+   if( NULL == out ) {
+      /* TODO: Error. */
+   }
+
+   if( NULL != out->root ) {
+      /* TODO: Error. */
+   }
+
+   for( i = 0 ; blength( html_string ) > i ; i++ ) {
+      html_tree_parse_char( bchar( html_string, i ), out );
+   }
+
+   html_tree_cleanup( out->root );
+}
+
+void html_tree_free_attr( struct html_tree_attr* attr ) {
+   bdestroy( attr->label );
+   bdestroy( attr->value );
+   free( attr );
+}
+
+void html_tree_free_tag( struct html_tree_tag* tag ) {
+   struct html_tree_attr* attr_iter = NULL;
+   struct html_tree_attr* attr_next = NULL;
+
+   attr_iter = tag->attrs;
+   while( NULL != attr_iter ) {
+      attr_next = attr_iter->next;
+      html_tree_free_attr( attr_iter );
+      attr_iter = attr_next;
+   }
+
+   bdestroy( tag->data );
+   bdestroy( tag->tag );
+
+   free( tag );
+}
+

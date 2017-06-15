@@ -37,5 +37,10 @@ struct html_tree {
    struct html_tree_tag* current;
 };
 
+void html_tree_new_tag( struct html_tree* tree );
+int html_tree_parse_string( bstring html_string, struct html_tree* out );
+void html_tree_free_attr( struct html_tree_attr* attr );
+void html_tree_free_tag( struct html_tree_tag* tag );
+
 #endif /* PARSER_H */
 
