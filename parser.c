@@ -4,8 +4,21 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+struct html_tree_entity_def {
+   struct tagbstring name;
+   struct tagbstring character;
+};
+
 static struct tagbstring tag_br = bsStatic( "br" );
 static struct tagbstring tag_img = bsStatic( "img" );
+static struct tagbstring tag_name = bsStatic( "name" );
+
+#define HTML_TREE_ENTITY_COUNT 2
+
+static struct html_tree_entity_def entities[HTML_TREE_ENTITY_COUNT] = {
+   { bsStatic( "dash" ), bsStatic( "-" ) },
+   { bsStatic( "copy" ), bsStatic( "©" ) },
+};
 
 void html_tree_new_tag( struct html_tree* tree ) {
    struct html_tree_tag* new_tag = NULL;
@@ -46,7 +59,7 @@ void html_tree_new_tag( struct html_tree* tree ) {
    }
 }
 
-static void html_tree_new_attr( struct html_tree_tag* tag ) {
+static struct html_tree_attr* html_tree_new_attr( struct html_tree_tag* tag ) {
    struct html_tree_attr* attr_iter = NULL;
    struct html_tree_attr* new_attr = NULL;
 
@@ -67,6 +80,8 @@ static void html_tree_new_attr( struct html_tree_tag* tag ) {
       }
       attr_iter->next = new_attr;
    }
+
+   return new_attr;
 }
 
 static void html_tree_append_char( char c, struct html_tree* tree ) {
@@ -98,10 +113,27 @@ static void html_tree_append_char( char c, struct html_tree* tree ) {
          }
          bconchar( attr_current->value, c );
          break;
+
+      case HTML_TREE_IN_ENTITY:
+         attr_current = tree->current->attrs;
+         /* The current attr is always last. */
+         while(
+            NULL != attr_current &&
+            0 != bstricmp( &tag_name, attr_current->label )
+         ) {
+            attr_current = attr_current->next;
+         }
+         if( NULL == attr_current ) {
+            attr_current = html_tree_new_attr( tree->current );
+            bassign( attr_current->label, &tag_name );
+         }
+         bconchar( attr_current->value, c );
+         break;
    }
 }
 
 static void html_tree_parse_char( char c, struct html_tree* tree ) {
+   int i;
 
    switch( c ) {
       case '<':
@@ -128,7 +160,7 @@ static void html_tree_parse_char( char c, struct html_tree* tree ) {
          break;
 
       case '>':
-          if(
+         if(
             HTML_TREE_IN_END_TAG == tree->state ||
             /* Exceptions: Tags that close immediately always. */
             0 == bstricmp( tree->current->tag, &tag_br ) ||
@@ -150,6 +182,34 @@ static void html_tree_parse_char( char c, struct html_tree* tree ) {
          break;
 
       case '\0':
+         break;
+
+      case '&':
+         if( NULL != tree->current && NULL != tree->current->parent ) {
+            tree->current = tree->current->parent;
+         }
+         html_tree_new_tag( tree );
+         tree->last_state = tree->state;
+         tree->state = HTML_TREE_IN_ENTITY;
+         break;
+
+      case ';':
+         if( HTML_TREE_IN_ENTITY == tree->state ) {
+            for( i = 0 ; HTML_TREE_ENTITY_COUNT > i ; i++ ) {
+               if( 0 == bstricmp(
+                  &(entities[i].name),
+                  tree->current->attrs->value
+               ) ) {
+                  bassign( tree->current->data, &(entities[i].character) );
+               }
+            }
+            if( NULL != tree->current && NULL != tree->current->parent ) {
+               tree->current = tree->current->parent;
+            }
+            html_tree_new_tag( tree );
+            tree->state = tree->last_state;
+         }
+         /* TODO: Handle other states? */
          break;
 
       case '"':
@@ -176,16 +236,17 @@ static void html_tree_parse_char( char c, struct html_tree* tree ) {
          }
          break;
 
-      case '\t':
       case '\n':
       case '\r':
+         /* Always ignore newlines. */
+         break;
+
+      case '\t':
       case ' ':
          /* Limit spaces to one. */
          if(
-            ' ' != tree->last_char ||
-            '\t' != tree->last_char ||
-            '\n' != tree->last_char ||
-            '\r' != tree->last_char
+            ' ' == tree->last_char ||
+            '\t' == tree->last_char
          ) {
             break;
          }

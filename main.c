@@ -15,16 +15,18 @@ void walk_tree( struct html_tree_tag* tag, int depth ) {
          printf( "   " );
       }
       if( 0 == blength( tag_iter->tag ) ) {
-         printf( "data ( %s )\n", bdata( tag_iter->data ) );
+         printf( "data ( %s ) (", bdata( tag_iter->data ) );
       } else {
          printf( "%s (", bdata( tag_iter->tag ) );
-         attr_iter = tag_iter->attrs;
-         while( NULL != attr_iter ) {
-            printf( " %s=%s", bdata( attr_iter->label ), bdata( attr_iter->value ) );
-            attr_iter = attr_iter->next;
-         }
-         printf( " )\n" );
       }
+
+      attr_iter = tag_iter->attrs;
+      while( NULL != attr_iter ) {
+         printf( " %s=%s", bdata( attr_iter->label ), bdata( attr_iter->value ) );
+         attr_iter = attr_iter->next;
+      }
+      printf( " )\n" );
+
       if( NULL != tag_iter->first_child ) {
          walk_tree( tag_iter->first_child, depth + 1 );
       }
