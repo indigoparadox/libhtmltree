@@ -38,7 +38,7 @@ int main( int argc, char** argv ) {
    bstring btest = NULL;
    struct html_tree* ttest = NULL;
    FILE* ftest = NULL;
-   char readc = '\0';
+   unsigned char readc = '\0';
 
    if( 2 > argc ) {
       printf( "Usage: %s FILE\n", argv[0] );
