@@ -9,13 +9,13 @@ struct html_tree_entity_def {
    struct tagbstring character;
 };
 
-static struct tagbstring tag_br = bsStatic( "br" );
-static struct tagbstring tag_img = bsStatic( "img" );
 static struct tagbstring tag_name = bsStatic( "name" );
 
-#define HTML_TREE_SINGLETON_COUNT 16
+#define HTML_TREE_SINGLETON_COUNT 18
 
 static struct tagbstring html_tree_singleton_tags[HTML_TREE_SINGLETON_COUNT] = {
+   bsStatic( "!--" ),
+   bsStatic( "!DOCTYPE" ),
    bsStatic( "area" ),
    bsStatic( "base" ),
    bsStatic( "br" ),
@@ -33,6 +33,8 @@ static struct tagbstring html_tree_singleton_tags[HTML_TREE_SINGLETON_COUNT] = {
    bsStatic( "track" ),
    bsStatic( "wbr" )
 };
+
+static bstring tag_comment = &(html_tree_singleton_tags[0]);
 
 #define HTML_TREE_ENTITY_COUNT 12
 
@@ -53,6 +55,7 @@ static struct html_tree_entity_def entities[HTML_TREE_ENTITY_COUNT] = {
 
 void html_tree_new_tag( struct html_tree* tree ) {
    struct html_tree_tag* new_tag = NULL;
+   struct html_tree_tag* new_root = NULL;
 
    /* Create the new tag. */
    new_tag = calloc( 1, sizeof( struct html_tree_tag ) );
@@ -60,7 +63,14 @@ void html_tree_new_tag( struct html_tree* tree ) {
    new_tag->data = bfromcstr( "" );
 
    if( NULL == tree->root ) {
-      tree->root = new_tag;
+      new_root = calloc( 1, sizeof( struct html_tree_tag ) );
+      new_root->tag = bfromcstr( "root" );
+      new_root->data = bfromcstr( "" );
+
+      tree->root = new_root;
+      tree->root->first_child = new_tag;
+      new_tag->parent = new_root;
+      tree->current = tree->root->first_child;
    }
 
    if( NULL == tree->current ) {
@@ -165,6 +175,7 @@ static void html_tree_append_char( char c, struct html_tree* tree ) {
 
 static void html_tree_parse_char( char c, struct html_tree* tree ) {
    int i;
+   short tag_is_singleton_or_entity = 0;
 
    switch( c ) {
       case '<':
@@ -191,18 +202,34 @@ static void html_tree_parse_char( char c, struct html_tree* tree ) {
          break;
 
       case '>':
+         for( i = 0 ; HTML_TREE_SINGLETON_COUNT > i ; i++ ) {
+            if( 0 == bstricmp(
+               tree->current->tag,
+               &(html_tree_singleton_tags[i])
+            ) ) {
+               tag_is_singleton_or_entity = 1;
+            }
+         }
+
          if(
             HTML_TREE_IN_END_TAG == tree->state ||
-            /* Exceptions: Tags that close immediately always. */
-            0 == bstricmp( tree->current->tag, &tag_br ) ||
-            0 == bstricmp( tree->current->tag, &tag_img )
+            tag_is_singleton_or_entity
          ) {
+            /* Strip off the end -- in comments. */
+            if( 0 == bstricmp( tree->current->tag, tag_comment ) ) {
+               btrunc(
+                  tree->current->attrs->label,
+                  blength( tree->current->attrs->label ) - 2
+               );
+            }
+
             if( 0 == blength( tree->current->tag ) ) {
                tree->current = tree->current->parent;
             }
             if( NULL != tree->current->parent ) {
                tree->current = tree->current->parent;
             }
+
             tree->state = HTML_TREE_IN_DATA;
          } else if( HTML_TREE_IN_START_TAG == tree->state ) {
             tree->state = HTML_TREE_IN_DATA;
