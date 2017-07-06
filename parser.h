@@ -4,6 +4,19 @@
 
 #include "bstrlib.h"
 
+#ifndef html_tree_alloc
+#define html_tree_alloc calloc
+#endif /* html_tree_alloc */
+
+#ifndef html_tree_free
+#define html_tree_free free
+#endif /* html_tree_free */
+
+struct html_tree_entity_def {
+   struct tagbstring name;
+   struct tagbstring character;
+};
+
 enum html_tree_state {
    HTML_TREE_IN_DATA,
    HTML_TREE_OPENING_TAG,
@@ -41,6 +54,51 @@ void html_tree_new_tag( struct html_tree* tree );
 int html_tree_parse_string( bstring html_string, struct html_tree* out );
 void html_tree_free_attr( struct html_tree_attr* attr );
 void html_tree_free_tag( struct html_tree_tag* tag );
+
+#ifdef PARSER_C
+
+#ifndef HTML_CUSTOM_SINGLETONS
+
+struct tagbstring html_tree_singleton_tags[] = {
+   bsStatic( "!DOCTYPE" ),
+   bsStatic( "area" ),
+   bsStatic( "base" ),
+   bsStatic( "br" ),
+   bsStatic( "col" ),
+   bsStatic( "command" ),
+   bsStatic( "embed" ),
+   bsStatic( "hr" ),
+   bsStatic( "img" ),
+   bsStatic( "input" ),
+   bsStatic( "keygen" ),
+   bsStatic( "link" ),
+   bsStatic( "meta" ),
+   bsStatic( "param" ),
+   bsStatic( "source" ),
+   bsStatic( "track" ),
+   bsStatic( "wbr" ),
+   { 0, 0, NULL }
+};
+
+struct html_tree_entity_def html_tree_entities[] = {
+   { bsStatic( "dash" ), bsStatic( "-" ) },
+   { bsStatic( "copy" ), bsStatic( "©" ) },
+   { bsStatic( "amp" ), bsStatic( "&" ) },
+   { bsStatic( "nbsp" ), bsStatic( " " ) },
+   { bsStatic( "lt" ), bsStatic( "<" ) },
+   { bsStatic( "gt" ), bsStatic( ">" ) },
+   { bsStatic( "quot" ), bsStatic( "\"" ) },
+   { bsStatic( "apos" ), bsStatic( "'" ) },
+   { bsStatic( "cent" ), bsStatic( "¢" ) },
+   { bsStatic( "pound" ), bsStatic( "£" ) },
+   { bsStatic( "yen" ), bsStatic( "¥" ) },
+   { bsStatic( "reg" ), bsStatic( "®" ) },
+   { { 0, 0, NULL }, { 0, 0, NULL } }
+};
+
+#endif /* HTML_CUSTOM_SINGLETONS */
+
+#endif /* PARSER_C */
 
 #endif /* PARSER_H */
 
