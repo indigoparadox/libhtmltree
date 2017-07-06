@@ -1,69 +1,24 @@
 
+#define PARSER_C
 #include "parser.h"
 
 #include <stdint.h>
 #include <stdlib.h>
 
-struct html_tree_entity_def {
-   struct tagbstring name;
-   struct tagbstring character;
-};
-
 static struct tagbstring tag_name = bsStatic( "name" );
-
-#define HTML_TREE_SINGLETON_COUNT 18
-
-static struct tagbstring html_tree_singleton_tags[HTML_TREE_SINGLETON_COUNT] = {
-   bsStatic( "!--" ),
-   bsStatic( "!DOCTYPE" ),
-   bsStatic( "area" ),
-   bsStatic( "base" ),
-   bsStatic( "br" ),
-   bsStatic( "col" ),
-   bsStatic( "command" ),
-   bsStatic( "embed" ),
-   bsStatic( "hr" ),
-   bsStatic( "img" ),
-   bsStatic( "input" ),
-   bsStatic( "keygen" ),
-   bsStatic( "link" ),
-   bsStatic( "meta" ),
-   bsStatic( "param" ),
-   bsStatic( "source" ),
-   bsStatic( "track" ),
-   bsStatic( "wbr" )
-};
-
-static bstring tag_comment = &(html_tree_singleton_tags[0]);
-
-#define HTML_TREE_ENTITY_COUNT 12
-
-static struct html_tree_entity_def entities[HTML_TREE_ENTITY_COUNT] = {
-   { bsStatic( "dash" ), bsStatic( "-" ) },
-   { bsStatic( "copy" ), bsStatic( "©" ) },
-   { bsStatic( "amp" ), bsStatic( "&" ) },
-   { bsStatic( "nbsp" ), bsStatic( " " ) },
-   { bsStatic( "lt" ), bsStatic( "<" ) },
-   { bsStatic( "gt" ), bsStatic( ">" ) },
-   { bsStatic( "quot" ), bsStatic( "\"" ) },
-   { bsStatic( "apos" ), bsStatic( "'" ) },
-   { bsStatic( "cent" ), bsStatic( "¢" ) },
-   { bsStatic( "pound" ), bsStatic( "£" ) },
-   { bsStatic( "yen" ), bsStatic( "¥" ) },
-   { bsStatic( "reg" ), bsStatic( "®" ) }
-};
+static struct tagbstring tag_comment = bsStatic( "!--" );
 
 void html_tree_new_tag( struct html_tree* tree ) {
    struct html_tree_tag* new_tag = NULL;
    struct html_tree_tag* new_root = NULL;
 
    /* Create the new tag. */
-   new_tag = calloc( 1, sizeof( struct html_tree_tag ) );
+   new_tag = html_tree_alloc( 1, sizeof( struct html_tree_tag ) );
    new_tag->tag = bfromcstr( "" );
    new_tag->data = bfromcstr( "" );
 
    if( NULL == tree->root ) {
-      new_root = calloc( 1, sizeof( struct html_tree_tag ) );
+      new_root = html_tree_alloc( 1, sizeof( struct html_tree_tag ) );
       new_root->tag = bfromcstr( "root" );
       new_root->data = bfromcstr( "" );
 
@@ -104,7 +59,7 @@ static struct html_tree_attr* html_tree_new_attr( struct html_tree_tag* tag ) {
    struct html_tree_attr* attr_iter = NULL;
    struct html_tree_attr* new_attr = NULL;
 
-   new_attr = calloc( 1, sizeof( struct html_tree_attr ) );
+   new_attr = html_tree_alloc( 1, sizeof( struct html_tree_attr ) );
    new_attr->label = bfromcstr( "" );
    new_attr->value = bfromcstr( "" );
 
@@ -170,12 +125,18 @@ static void html_tree_append_char( unsigned char c, struct html_tree* tree ) {
          }
          bconchar( attr_current->value, c );
          break;
+
+      case HTML_TREE_IN_END_TAG:
+      case HTML_TREE_OPENING_TAG:
+         /* Do nothing. */
+         break;
    }
 }
 
 static void html_tree_parse_char( unsigned char c, struct html_tree* tree ) {
-   int i;
    short tag_is_singleton_or_entity = 0;
+   bstring tag_iter = html_tree_singleton_tags;
+   struct html_tree_entity_def* ent_iter = html_tree_entities;
 
    switch( c ) {
       case '<':
@@ -202,13 +163,14 @@ static void html_tree_parse_char( unsigned char c, struct html_tree* tree ) {
          break;
 
       case '>':
-         for( i = 0 ; HTML_TREE_SINGLETON_COUNT > i ; i++ ) {
+         while( NULL != tag_iter->data ) {
             if( 0 == bstricmp(
                tree->current->tag,
-               &(html_tree_singleton_tags[i])
+               tag_iter
             ) ) {
                tag_is_singleton_or_entity = 1;
             }
+            tag_iter++;
          }
 
          if(
@@ -216,7 +178,7 @@ static void html_tree_parse_char( unsigned char c, struct html_tree* tree ) {
             tag_is_singleton_or_entity
          ) {
             /* Strip off the end -- in comments. */
-            if( 0 == bstricmp( tree->current->tag, tag_comment ) ) {
+            if( 0 == bstricmp( tree->current->tag, &tag_comment ) ) {
                btrunc(
                   tree->current->attrs->label,
                   blength( tree->current->attrs->label ) - 2
@@ -253,12 +215,12 @@ static void html_tree_parse_char( unsigned char c, struct html_tree* tree ) {
 
       case ';':
          if( HTML_TREE_IN_ENTITY == tree->state ) {
-            for( i = 0 ; HTML_TREE_ENTITY_COUNT > i ; i++ ) {
+            while( NULL != ent_iter->character.data ) {
                if( 0 == bstricmp(
-                  &(entities[i].name),
+                  &(ent_iter->name),
                   tree->current->attrs->value
                ) ) {
-                  bassign( tree->current->data, &(entities[i].character) );
+                  bassign( tree->current->data, &(ent_iter->character) );
                }
             }
             if( NULL != tree->current && NULL != tree->current->parent ) {
@@ -368,7 +330,6 @@ static void html_tree_cleanup( struct html_tree_tag* tag ) {
    struct html_tree_tag* tag_parent = NULL;
    bstring str_test = NULL;
    int attr_count;
-   int i;
 
    tag_iter = tag;
    while( NULL != tag_iter ) {
@@ -413,10 +374,12 @@ int html_tree_parse_string( bstring html_string, struct html_tree* out ) {
 
    if( NULL == out ) {
       /* TODO: Error. */
+      return 1;
    }
 
    if( NULL != out->root ) {
       /* TODO: Error. */
+      return 1;
    }
 
    for( i = 0 ; blength( html_string ) > i ; i++ ) {
@@ -424,12 +387,14 @@ int html_tree_parse_string( bstring html_string, struct html_tree* out ) {
    }
 
    html_tree_cleanup( out->root );
+
+   return 0;
 }
 
 void html_tree_free_attr( struct html_tree_attr* attr ) {
    bdestroy( attr->label );
    bdestroy( attr->value );
-   free( attr );
+   html_tree_free( attr );
 }
 
 void html_tree_free_tag( struct html_tree_tag* tag ) {
@@ -446,6 +411,6 @@ void html_tree_free_tag( struct html_tree_tag* tag ) {
    bdestroy( tag->data );
    bdestroy( tag->tag );
 
-   free( tag );
+   html_tree_free( tag );
 }
 
