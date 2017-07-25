@@ -133,10 +133,21 @@ static void html_tree_append_char( unsigned char c, struct html_tree* tree ) {
    }
 }
 
-static void html_tree_parse_char( unsigned char c, struct html_tree* tree ) {
+static void html_tree_parse_char(
+   unsigned char c, struct html_tree* tree, bstring singleton_tags,
+   struct html_tree_entity_def* entities
+) {
    short tag_is_singleton_or_entity = 0;
-   bstring tag_iter = html_tree_singleton_tags;
-   struct html_tree_entity_def* ent_iter = html_tree_entities;
+   bstring tag_iter = singleton_tags;
+   struct html_tree_entity_def* ent_iter = entities;
+
+   if( NULL == singleton_tags ) {
+      tag_iter = html_tree_singleton_tags;
+   }
+
+   if( NULL == entities ) {
+      ent_iter = html_tree_entities;
+   }
 
    switch( c ) {
       case '<':
@@ -369,7 +380,10 @@ static void html_tree_cleanup( struct html_tree_tag* tag ) {
    }
 }
 
-int html_tree_parse_string( bstring html_string, struct html_tree* out ) {
+int html_tree_parse_string(
+   bstring html_string, struct html_tree* out, bstring singleton_tags,
+   struct html_tree_entity_def* entities
+) {
    int i;
 
    if( NULL == out ) {
@@ -383,7 +397,8 @@ int html_tree_parse_string( bstring html_string, struct html_tree* out ) {
    }
 
    for( i = 0 ; blength( html_string ) > i ; i++ ) {
-      html_tree_parse_char( bchar( html_string, i ), out );
+      html_tree_parse_char(
+         bchar( html_string, i ), out, singleton_tags, entities );
    }
 
    html_tree_cleanup( out->root );

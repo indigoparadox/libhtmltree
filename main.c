@@ -61,7 +61,7 @@ int main( int argc, char** argv ) {
 
    ttest = calloc( 1, sizeof( struct html_tree ) );
 
-   html_tree_parse_string( btest, ttest );
+   html_tree_parse_string( btest, ttest, NULL, NULL );
 
    walk_tree( ttest->root, 0 );
 
