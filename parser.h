@@ -51,13 +51,12 @@ struct html_tree {
 };
 
 void html_tree_new_tag( struct html_tree* tree );
-int html_tree_parse_string( bstring html_string, struct html_tree* out );
+int html_tree_parse_string( bstring html_string, struct html_tree* out,
+   bstring singleton_tags, struct html_tree_entity_def* entities );
 void html_tree_free_attr( struct html_tree_attr* attr );
 void html_tree_free_tag( struct html_tree_tag* tag );
 
 #ifdef PARSER_C
-
-#ifndef HTML_CUSTOM_SINGLETONS
 
 struct tagbstring html_tree_singleton_tags[] = {
    bsStatic( "!DOCTYPE" ),
@@ -96,7 +95,10 @@ struct html_tree_entity_def html_tree_entities[] = {
    { { 0, 0, NULL }, { 0, 0, NULL } }
 };
 
-#endif /* HTML_CUSTOM_SINGLETONS */
+#else
+
+extern struct html_tree_entity_def* html_tree_entities;
+extern bstring html_tree_singleton_tags;
 
 #endif /* PARSER_C */
 
